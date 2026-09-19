@@ -2,18 +2,13 @@ import streamlit as st
 
 from product_search import (
     load_data,
-    search_product,
-    search_vendor,
-    find_exact_product,
-    find_exact_vendor,
-    find_matching_products,
-    find_matching_vendors,
+    search,
 )
 
 
-# --------------------------------------------------
-# Page Configuration
-# --------------------------------------------------
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
 
 st.set_page_config(
     page_title="Vendor–Product Search",
@@ -22,31 +17,39 @@ st.set_page_config(
 )
 
 
-# --------------------------------------------------
-# Load Data
-# --------------------------------------------------
+# =========================================================
+# LOAD DATABASE
+# =========================================================
 
 try:
+
     df = load_data()
 
 except Exception as e:
-    st.error(f"Unable to load database: {e}")
+
+    st.error(
+        f"Unable to load database: {e}"
+    )
+
     st.stop()
 
 
-# --------------------------------------------------
-# Session State
-# --------------------------------------------------
+# =========================================================
+# CHAT MEMORY
+# =========================================================
 
 if "messages" not in st.session_state:
+
     st.session_state.messages = []
 
 
-# --------------------------------------------------
-# Title
-# --------------------------------------------------
+# =========================================================
+# PAGE TITLE
+# =========================================================
 
-st.title("🔎 Vendor–Product Search System")
+st.title(
+    "🔎 Vendor–Product Search System"
+)
 
 st.write(
     "Search for a product to find its vendors, "
@@ -54,29 +57,33 @@ st.write(
 )
 
 
-# --------------------------------------------------
-# Display Previous Messages
-# --------------------------------------------------
+# =========================================================
+# DISPLAY PREVIOUS CHAT
+# =========================================================
 
 for message in st.session_state.messages:
 
-    with st.chat_message(message["role"]):
+    with st.chat_message(
+        message["role"]
+    ):
 
-        st.markdown(message["content"])
+        st.markdown(
+            message["content"]
+        )
 
 
-# --------------------------------------------------
-# Chat Input
-# --------------------------------------------------
+# =========================================================
+# CHAT INPUT
+# =========================================================
 
 query = st.chat_input(
     "Search for a product or vendor..."
 )
 
 
-# --------------------------------------------------
-# Process New Message
-# --------------------------------------------------
+# =========================================================
+# PROCESS SEARCH
+# =========================================================
 
 if query:
 
@@ -86,9 +93,9 @@ if query:
         st.stop()
 
 
-    # ----------------------------------------------
-    # Display User Message
-    # ----------------------------------------------
+    # -----------------------------------------------------
+    # USER MESSAGE
+    # -----------------------------------------------------
 
     st.session_state.messages.append(
         {
@@ -98,168 +105,153 @@ if query:
     )
 
     with st.chat_message("user"):
+
         st.markdown(query)
 
 
-    # ----------------------------------------------
-    # Generate Response
-    # ----------------------------------------------
+    # -----------------------------------------------------
+    # SEARCH DATABASE
+    # -----------------------------------------------------
 
-    response = ""
-
-
-    # ----------------------------------------------
-    # 1. Exact Product Match
-    # ----------------------------------------------
-
-    exact_products = find_exact_product(
+    result = search(
         df,
         query
     )
 
-    if exact_products:
 
-        product_name = exact_products[0]
+    result_type = result["type"]
 
-        vendors = search_product(
-            df,
-            product_name
+    matched_name = result["matched_name"]
+
+    results = result["results"]
+
+
+    # =====================================================
+    # PRODUCT RESULT
+    # =====================================================
+
+    if result_type == "PRODUCT":
+
+        response = (
+            f"### Product: {matched_name}\n\n"
         )
 
-        response += f"### Product: {product_name}\n\n"
-
-        response += "**Associated Vendors:**\n\n"
-
-        for index, vendor in enumerate(
-            vendors,
-            start=1
-        ):
-            response += f"{index}. {vendor}\n"
-
-
-    else:
-
-        # ------------------------------------------
-        # 2. Exact Vendor Match
-        # ------------------------------------------
-
-        exact_vendors = find_exact_vendor(
-            df,
-            query
+        response += (
+            "**Associated Vendors:**\n\n"
         )
 
-        if exact_vendors:
+        if results:
 
-            vendor_name = exact_vendors[0]
-
-            products = search_vendor(
-                df,
-                vendor_name
-            )
-
-            response += f"### Vendor: {vendor_name}\n\n"
-
-            response += "**Associated Products:**\n\n"
-
-            for index, product in enumerate(
-                products,
+            for index, vendor in enumerate(
+                results,
                 start=1
             ):
-                response += f"{index}. {product}\n"
 
+                response += (
+                    f"{index}. {vendor}\n"
+                )
 
         else:
 
-            # --------------------------------------
-            # 3. Partial Product Match
-            # --------------------------------------
-
-            matching_products = find_matching_products(
-                df,
-                query
+            response += (
+                "No vendors found for this product."
             )
 
 
-            # --------------------------------------
-            # 4. Partial Vendor Match
-            # --------------------------------------
+    # =====================================================
+    # VENDOR RESULT
+    # =====================================================
 
-            matching_vendors = find_matching_vendors(
-                df,
-                query
-            )
+    elif result_type == "VENDOR":
 
+        response = (
+            f"### Vendor: {matched_name}\n\n"
+        )
 
-            # --------------------------------------
-            # Partial Product Results
-            # --------------------------------------
+        response += (
+            "**Associated Products:**\n\n"
+        )
 
-            if matching_products:
+        if results:
 
-                response += "### Matching Products\n\n"
+            for index, product in enumerate(
+                results,
+                start=1
+            ):
 
-                for product in matching_products:
-
-                    response += f"**{product}**\n\n"
-
-                    vendors = search_product(
-                        df,
-                        product
-                    )
-
-                    for vendor in vendors:
-                        response += f"- {vendor}\n"
-
-                    response += "\n"
-
-
-            # --------------------------------------
-            # Partial Vendor Results
-            # --------------------------------------
-
-            if matching_vendors:
-
-                response += "### Matching Vendors\n\n"
-
-                for vendor in matching_vendors:
-
-                    response += f"**{vendor}**\n\n"
-
-                    products = search_vendor(
-                        df,
-                        vendor
-                    )
-
-                    for product in products:
-                        response += f"- {product}\n"
-
-                    response += "\n"
-
-
-            # --------------------------------------
-            # No Match
-            # --------------------------------------
-
-            if not matching_products and not matching_vendors:
-
-                response = (
-                    "No matching product or vendor "
-                    "was found in the database."
+                response += (
+                    f"{index}. {product}\n"
                 )
 
+        else:
 
-    # ----------------------------------------------
-    # Display Assistant Response
-    # ----------------------------------------------
+            response += (
+                "No products found for this vendor."
+            )
+
+
+    # =====================================================
+    # MULTIPLE MATCH
+    # =====================================================
+
+    elif result_type == "MULTIPLE_MATCH":
+
+        response = (
+            "### Multiple Matches Found\n\n"
+        )
+
+        response += (
+            "**Matching Product:**\n\n"
+        )
+
+        for product in results["products"]:
+
+            response += (
+                f"- {product}\n"
+            )
+
+        response += (
+            "\n**Matching Vendor:**\n\n"
+        )
+
+        for vendor in results["vendors"]:
+
+            response += (
+                f"- {vendor}\n"
+            )
+
+        response += (
+            "\nPlease enter the exact product "
+            "or vendor name."
+        )
+
+
+    # =====================================================
+    # NO MATCH
+    # =====================================================
+
+    else:
+
+        response = (
+            "No matching product or vendor "
+            "was found in the database."
+        )
+
+
+    # =====================================================
+    # ASSISTANT MESSAGE
+    # =====================================================
 
     with st.chat_message("assistant"):
 
-        st.markdown(response)
+        st.markdown(
+            response
+        )
 
 
-    # ----------------------------------------------
-    # Save Assistant Response
-    # ----------------------------------------------
+    # -----------------------------------------------------
+    # SAVE ASSISTANT MESSAGE
+    # -----------------------------------------------------
 
     st.session_state.messages.append(
         {
