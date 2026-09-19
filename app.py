@@ -4,6 +4,10 @@ from product_search import (
     load_data,
     search_product,
     search_vendor,
+    find_exact_product,
+    find_exact_vendor,
+    find_matching_products,
+    find_matching_vendors,
 )
 
 
@@ -31,6 +35,14 @@ except Exception as e:
 
 
 # --------------------------------------------------
+# Session State
+# --------------------------------------------------
+
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+
+# --------------------------------------------------
 # Title
 # --------------------------------------------------
 
@@ -43,70 +55,215 @@ st.write(
 
 
 # --------------------------------------------------
-# Search Box
+# Display Previous Messages
 # --------------------------------------------------
 
-query = st.text_input(
-    "Search Product or Vendor",
-    placeholder="Example: Phenol or LEO CHEMO PLAST",
+for message in st.session_state.messages:
+
+    with st.chat_message(message["role"]):
+
+        st.markdown(message["content"])
+
+
+# --------------------------------------------------
+# Chat Input
+# --------------------------------------------------
+
+query = st.chat_input(
+    "Search for a product or vendor..."
 )
 
 
 # --------------------------------------------------
-# Search
+# Process New Message
 # --------------------------------------------------
 
-if query.strip():
+if query:
 
     query = query.strip()
 
-    # ----------------------------------------------
-    # Search as Product
-    # ----------------------------------------------
-
-    product_vendors = search_product(df, query)
-
-    # ----------------------------------------------
-    # Search as Vendor
-    # ----------------------------------------------
-
-    vendor_products = search_vendor(df, query)
+    if not query:
+        st.stop()
 
 
     # ----------------------------------------------
-    # Product Result
+    # Display User Message
     # ----------------------------------------------
 
-    if product_vendors:
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": query,
+        }
+    )
 
-        st.subheader(f"Product: {query}")
-
-        st.write("**Associated Vendors:**")
-
-        for index, vendor in enumerate(product_vendors, start=1):
-            st.write(f"{index}. {vendor}")
-
-
-    # ----------------------------------------------
-    # Vendor Result
-    # ----------------------------------------------
-
-    if vendor_products:
-
-        st.subheader(f"Vendor: {query}")
-
-        st.write("**Associated Products:**")
-
-        for index, product in enumerate(vendor_products, start=1):
-            st.write(f"{index}. {product}")
+    with st.chat_message("user"):
+        st.markdown(query)
 
 
     # ----------------------------------------------
-    # No Match
+    # Generate Response
     # ----------------------------------------------
 
-    if not product_vendors and not vendor_products:
+    response = ""
 
-        st.warning(
-            "No matching product or vendor was found in the database."
+
+    # ----------------------------------------------
+    # 1. Exact Product Match
+    # ----------------------------------------------
+
+    exact_products = find_exact_product(
+        df,
+        query
+    )
+
+    if exact_products:
+
+        product_name = exact_products[0]
+
+        vendors = search_product(
+            df,
+            product_name
         )
+
+        response += f"### Product: {product_name}\n\n"
+
+        response += "**Associated Vendors:**\n\n"
+
+        for index, vendor in enumerate(
+            vendors,
+            start=1
+        ):
+            response += f"{index}. {vendor}\n"
+
+
+    else:
+
+        # ------------------------------------------
+        # 2. Exact Vendor Match
+        # ------------------------------------------
+
+        exact_vendors = find_exact_vendor(
+            df,
+            query
+        )
+
+        if exact_vendors:
+
+            vendor_name = exact_vendors[0]
+
+            products = search_vendor(
+                df,
+                vendor_name
+            )
+
+            response += f"### Vendor: {vendor_name}\n\n"
+
+            response += "**Associated Products:**\n\n"
+
+            for index, product in enumerate(
+                products,
+                start=1
+            ):
+                response += f"{index}. {product}\n"
+
+
+        else:
+
+            # --------------------------------------
+            # 3. Partial Product Match
+            # --------------------------------------
+
+            matching_products = find_matching_products(
+                df,
+                query
+            )
+
+
+            # --------------------------------------
+            # 4. Partial Vendor Match
+            # --------------------------------------
+
+            matching_vendors = find_matching_vendors(
+                df,
+                query
+            )
+
+
+            # --------------------------------------
+            # Partial Product Results
+            # --------------------------------------
+
+            if matching_products:
+
+                response += "### Matching Products\n\n"
+
+                for product in matching_products:
+
+                    response += f"**{product}**\n\n"
+
+                    vendors = search_product(
+                        df,
+                        product
+                    )
+
+                    for vendor in vendors:
+                        response += f"- {vendor}\n"
+
+                    response += "\n"
+
+
+            # --------------------------------------
+            # Partial Vendor Results
+            # --------------------------------------
+
+            if matching_vendors:
+
+                response += "### Matching Vendors\n\n"
+
+                for vendor in matching_vendors:
+
+                    response += f"**{vendor}**\n\n"
+
+                    products = search_vendor(
+                        df,
+                        vendor
+                    )
+
+                    for product in products:
+                        response += f"- {product}\n"
+
+                    response += "\n"
+
+
+            # --------------------------------------
+            # No Match
+            # --------------------------------------
+
+            if not matching_products and not matching_vendors:
+
+                response = (
+                    "No matching product or vendor "
+                    "was found in the database."
+                )
+
+
+    # ----------------------------------------------
+    # Display Assistant Response
+    # ----------------------------------------------
+
+    with st.chat_message("assistant"):
+
+        st.markdown(response)
+
+
+    # ----------------------------------------------
+    # Save Assistant Response
+    # ----------------------------------------------
+
+    st.session_state.messages.append(
+        {
+            "role": "assistant",
+            "content": response,
+        }
+    )
