@@ -6,49 +6,45 @@ from product_search import (
 )
 
 
-# =========================================================
+# ============================================================
 # PAGE CONFIGURATION
-# =========================================================
+# ============================================================
 
 st.set_page_config(
-    page_title="Hindcon-Speciality-Vendor–Product Search",
+    page_title="Hindcon-Speciality-Vendor–Product-Search",
     page_icon="🔎",
     layout="wide",
 )
 
 
-# =========================================================
+# ============================================================
 # LOAD DATABASE
-# =========================================================
+# ============================================================
 
 try:
-
     df = load_data()
 
 except Exception as e:
-
     st.error(
         f"Unable to load database: {e}"
     )
-
     st.stop()
 
 
-# =========================================================
-# CHAT MEMORY
-# =========================================================
+# ============================================================
+# CHAT HISTORY
+# ============================================================
 
 if "messages" not in st.session_state:
-
     st.session_state.messages = []
 
 
-# =========================================================
-# PAGE TITLE
-# =========================================================
+# ============================================================
+# TITLE
+# ============================================================
 
 st.title(
-    "🔎 Hindcon-Speciality-Vendor–Product Search System"
+    "Hindcon Speciality Vendor & Product Search System"
 )
 
 st.write(
@@ -57,33 +53,32 @@ st.write(
 )
 
 
-# =========================================================
+# ============================================================
 # DISPLAY PREVIOUS CHAT
-# =========================================================
+# ============================================================
 
 for message in st.session_state.messages:
 
     with st.chat_message(
         message["role"]
     ):
-
         st.markdown(
             message["content"]
         )
 
 
-# =========================================================
+# ============================================================
 # CHAT INPUT
-# =========================================================
+# ============================================================
 
 query = st.chat_input(
     "Search for a product or vendor..."
 )
 
 
-# =========================================================
+# ============================================================
 # PROCESS SEARCH
-# =========================================================
+# ============================================================
 
 if query:
 
@@ -92,10 +87,9 @@ if query:
     if not query:
         st.stop()
 
-
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # USER MESSAGE
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     st.session_state.messages.append(
         {
@@ -105,50 +99,56 @@ if query:
     )
 
     with st.chat_message("user"):
-
         st.markdown(query)
 
-
-    # -----------------------------------------------------
+    # --------------------------------------------------------
     # SEARCH DATABASE
-    # -----------------------------------------------------
+    # --------------------------------------------------------
 
     result = search(
         df,
-        query
+        query,
     )
 
-
     result_type = result["type"]
-
     matched_name = result["matched_name"]
-
     results = result["results"]
 
-
-    # =====================================================
+    # ========================================================
     # PRODUCT RESULT
-    # =====================================================
+    # ========================================================
 
     if result_type == "PRODUCT":
 
         response = (
-            f"### Product: {matched_name}\n\n"
+            f"### 📦 Product: {matched_name}\n\n"
         )
 
         response += (
-            "**Associated Vendors:**\n\n"
+            "### 🏢 Associated Vendors\n\n"
         )
 
         if results:
 
-            for index, vendor in enumerate(
-                results,
-                start=1
-            ):
+            # Excel-style Markdown table
+            response += (
+                "| Vendor | Contact No | Mail_id |\n"
+            )
+
+            response += (
+                "|---|---|---|\n"
+            )
+
+            for vendor_info in results:
+
+                vendor = vendor_info["vendor"]
+                contact = vendor_info["contact"]
+                mail_id = vendor_info["mail_id"]
 
                 response += (
-                    f"{index}. {vendor}\n"
+                    f"| {vendor} | "
+                    f"{contact} | "
+                    f"{mail_id} |\n"
                 )
 
         else:
@@ -157,26 +157,66 @@ if query:
                 "No vendors found for this product."
             )
 
-
-    # =====================================================
+    # ========================================================
     # VENDOR RESULT
-    # =====================================================
+    # ========================================================
 
     elif result_type == "VENDOR":
 
+        vendor_details = result.get(
+            "vendor_details",
+            {},
+        )
+
+        contact = vendor_details.get(
+            "contact",
+            "",
+        )
+
+        mail_id = vendor_details.get(
+            "mail_id",
+            "",
+        )
+
         response = (
-            f"### Vendor: {matched_name}\n\n"
+            f"### 🏢 Vendor: {matched_name}\n\n"
+        )
+
+        # ----------------------------------------------------
+        # Vendor details table
+        # ----------------------------------------------------
+
+        response += (
+            "### 📋 Vendor Details\n\n"
         )
 
         response += (
-            "**Associated Products:**\n\n"
+            "| Vendor | Contact No | Mail_id |\n"
+        )
+
+        response += (
+            "|---|---|---|\n"
+        )
+
+        response += (
+            f"| {matched_name} | "
+            f"{contact} | "
+            f"{mail_id} |\n\n"
+        )
+
+        # ----------------------------------------------------
+        # Products
+        # ----------------------------------------------------
+
+        response += (
+            "### 📦 Associated Products\n\n"
         )
 
         if results:
 
             for index, product in enumerate(
                 results,
-                start=1
+                start=1,
             ):
 
                 response += (
@@ -189,19 +229,18 @@ if query:
                 "No products found for this vendor."
             )
 
-
-    # =====================================================
+    # ========================================================
     # MULTIPLE MATCH
-    # =====================================================
+    # ========================================================
 
     elif result_type == "MULTIPLE_MATCH":
 
         response = (
-            "### Multiple Matches Found\n\n"
+            "### 🔍 Multiple Matches Found\n\n"
         )
 
         response += (
-            "**Matching Product:**\n\n"
+            "**Matching Products:**\n\n"
         )
 
         for product in results["products"]:
@@ -211,7 +250,7 @@ if query:
             )
 
         response += (
-            "\n**Matching Vendor:**\n\n"
+            "\n**Matching Vendors:**\n\n"
         )
 
         for vendor in results["vendors"]:
@@ -225,10 +264,9 @@ if query:
             "or vendor name."
         )
 
-
-    # =====================================================
+    # ========================================================
     # NO MATCH
-    # =====================================================
+    # ========================================================
 
     else:
 
@@ -237,21 +275,17 @@ if query:
             "was found in the database."
         )
 
-
-    # =====================================================
-    # ASSISTANT MESSAGE
-    # =====================================================
+    # ========================================================
+    # DISPLAY ASSISTANT RESPONSE
+    # ========================================================
 
     with st.chat_message("assistant"):
 
-        st.markdown(
-            response
-        )
+        st.markdown(response)
 
-
-    # -----------------------------------------------------
-    # SAVE ASSISTANT MESSAGE
-    # -----------------------------------------------------
+    # ========================================================
+    # SAVE ASSISTANT RESPONSE
+    # ========================================================
 
     st.session_state.messages.append(
         {

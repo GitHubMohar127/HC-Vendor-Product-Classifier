@@ -14,11 +14,19 @@ def load_data():
 
     df = pd.read_excel(DATA_FILE)
 
-    required_columns = {"Product", "Vendor"}
+    required_columns = {
+        "Product",
+        "Vendor",
+        "Contuct",
+        "Mail_id",
+    }
 
     if not required_columns.issubset(df.columns):
+        missing_columns = required_columns - set(df.columns)
+
         raise ValueError(
-            "Excel file must contain 'Product' and 'Vendor' columns."
+            "Excel file is missing required columns: "
+            + ", ".join(missing_columns)
         )
 
     df = df.dropna(subset=["Product", "Vendor"]).copy()
@@ -33,6 +41,33 @@ def load_data():
         df["Vendor"]
         .astype(str)
         .str.strip()
+    )
+
+    # Keep blank Contact and Mail ID blank
+    # instead of displaying nan
+    df["Contuct"] = (
+        df["Contuct"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    df["Mail_id"] = (
+        df["Mail_id"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    # Convert possible "nan" text back to blank
+    df["Contuct"] = df["Contuct"].replace(
+        ["nan", "None"],
+        ""
+    )
+
+    df["Mail_id"] = df["Mail_id"].replace(
+        ["nan", "None"],
+        ""
     )
 
     return df
@@ -80,6 +115,86 @@ def get_unique_values(df, column):
 
 
 # =========================================================
+# GET VENDOR DETAILS
+# =========================================================
+
+def get_vendor_details(df, vendor):
+    """
+    Get Contact and Mail ID for a vendor.
+
+    If Contact or Mail ID is unavailable,
+    an empty string is returned.
+    """
+
+    vendor_rows = df[
+        df["Vendor"].apply(
+            lambda value: normalize_text(value)
+            == normalize_text(vendor)
+        )
+    ]
+
+    if vendor_rows.empty:
+        return {
+            "vendor": vendor,
+            "contact": "",
+            "mail_id": "",
+        }
+
+    # First available contact
+    contact = ""
+
+    for value in vendor_rows["Contuct"].tolist():
+
+        value = str(value).strip()
+
+        if value and value.lower() not in ["nan", "none"]:
+            contact = value
+            break
+
+
+    # First available email
+    mail_id = ""
+
+    for value in vendor_rows["Mail_id"].tolist():
+
+        value = str(value).strip()
+
+        if value and value.lower() not in ["nan", "none"]:
+            mail_id = value
+            break
+
+
+    return {
+        "vendor": vendor,
+        "contact": contact,
+        "mail_id": mail_id,
+    }
+
+
+# =========================================================
+# GET ALL VENDOR DETAILS
+# =========================================================
+
+def get_vendor_details_list(df, vendors):
+    """
+    Return vendor information for a list of vendors.
+    """
+
+    details = []
+
+    for vendor in vendors:
+
+        details.append(
+            get_vendor_details(
+                df,
+                vendor
+            )
+        )
+
+    return details
+
+
+# =========================================================
 # EXACT MATCH
 # =========================================================
 
@@ -88,7 +203,10 @@ def find_exact_product(df, query):
 
     query_normalized = normalize_text(query)
 
-    products = get_unique_values(df, "Product")
+    products = get_unique_values(
+        df,
+        "Product"
+    )
 
     for product in products:
 
@@ -103,7 +221,10 @@ def find_exact_vendor(df, query):
 
     query_normalized = normalize_text(query)
 
-    vendors = get_unique_values(df, "Vendor")
+    vendors = get_unique_values(
+        df,
+        "Vendor"
+    )
 
     for vendor in vendors:
 
@@ -149,7 +270,9 @@ def token_match_score(query, value):
 
         # Exact token
         if query_token in value_tokens:
+
             scores.append(100)
+
             continue
 
         best_token_score = 0
@@ -168,12 +291,15 @@ def token_match_score(query, value):
             if score > best_token_score:
                 best_token_score = score
 
-        scores.append(best_token_score)
+        scores.append(
+            best_token_score
+        )
 
     if not scores:
         return 0
 
-    # Every query token should have a reasonable match
+    # Every query token should have
+    # a reasonable match
     return min(scores)
 
 
@@ -198,52 +324,38 @@ def match_score(query, value):
     if not query_normalized or not value_normalized:
         return 0
 
-    # -----------------------------------------
-    # Exact match
-    # -----------------------------------------
 
+    # Exact match
     if query_normalized == value_normalized:
         return 100
 
 
-    # -----------------------------------------
     # Query is contained in value
-    # -----------------------------------------
-
     if query_normalized in value_normalized:
         return 98
 
 
-    # -----------------------------------------
     # Value is contained in query
-    # -----------------------------------------
-
     if value_normalized in query_normalized:
         return 96
 
 
-    # -----------------------------------------
     # Token matching
-    # -----------------------------------------
-
     token_score = token_match_score(
         query_normalized,
         value_normalized
     )
 
 
-    # -----------------------------------------
     # Full-string fuzzy matching
-    # -----------------------------------------
-
     ratio_score = fuzz.ratio(
         query_normalized,
         value_normalized
     )
 
+
     partial_score = 0
 
-    # Partial matching is useful for longer searches
     if len(query_normalized) >= 5:
 
         partial_score = fuzz.partial_ratio(
@@ -298,16 +410,13 @@ def find_best_match(query, values):
         )
 
         if score > best_score:
+
             best_score = score
             best_value = value
 
 
-    # -------------------------------------------------
-    # Matching thresholds
-    # -------------------------------------------------
-
-    # Very short searches should not use aggressive
-    # fuzzy matching because they can create false matches.
+    # Very short searches should not use
+    # aggressive fuzzy matching
     if len(query_normalized) <= 3:
 
         if best_score >= 98:
@@ -468,12 +577,12 @@ def find_matching_products(df, query):
         )
 
         if score >= 78:
+
             matches.append(
                 (score, product)
             )
 
 
-    # Highest score first
     matches.sort(
         key=lambda item: item[0],
         reverse=True
@@ -509,12 +618,12 @@ def find_matching_vendors(df, query):
         )
 
         if score >= 78:
+
             matches.append(
                 (score, vendor)
             )
 
 
-    # Highest score first
     matches.sort(
         key=lambda item: item[0],
         reverse=True
@@ -536,22 +645,17 @@ def search(df, query):
 
     Priority:
 
-    1. Exact Product
-    2. Exact Vendor
-    3. Strong Product Match
-    4. Strong Vendor Match
-    5. No Match
-
-    Returns a dictionary containing:
-
-        type
-        matched_name
-        results
+        1. Exact Product
+        2. Exact Vendor
+        3. Strong Product Match
+        4. Strong Vendor Match
+        5. No Match
     """
 
     query = str(query).strip()
 
     if not query:
+
         return {
             "type": "NO_MATCH",
             "matched_name": None,
@@ -583,10 +687,15 @@ def search(df, query):
             .tolist()
         )
 
+        vendor_details = get_vendor_details_list(
+            df,
+            vendors
+        )
+
         return {
             "type": "PRODUCT",
             "matched_name": product,
-            "results": vendors
+            "results": vendor_details
         }
 
 
@@ -614,9 +723,15 @@ def search(df, query):
             .tolist()
         )
 
+        vendor_details = get_vendor_details(
+            df,
+            vendor
+        )
+
         return {
             "type": "VENDOR",
             "matched_name": vendor,
+            "vendor_details": vendor_details,
             "results": products
         }
 
@@ -652,7 +767,7 @@ def search(df, query):
 
 
     # =====================================================
-    # Compare Product vs Vendor 
+    # COMPARE PRODUCT VS VENDOR
     # =====================================================
 
     if matched_product and matched_vendor:
@@ -671,10 +786,15 @@ def search(df, query):
                 .tolist()
             )
 
+            vendor_details = get_vendor_details_list(
+                df,
+                result_vendors
+            )
+
             return {
                 "type": "PRODUCT",
                 "matched_name": matched_product,
-                "results": result_vendors
+                "results": vendor_details
             }
 
 
@@ -692,9 +812,15 @@ def search(df, query):
                 .tolist()
             )
 
+            vendor_details = get_vendor_details(
+                df,
+                matched_vendor
+            )
+
             return {
                 "type": "VENDOR",
                 "matched_name": matched_vendor,
+                "vendor_details": vendor_details,
                 "results": result_products
             }
 
@@ -713,7 +839,7 @@ def search(df, query):
 
 
     # =====================================================
-    # Only Product matched
+    # ONLY PRODUCT MATCHED
     # =====================================================
 
     if matched_product:
@@ -729,15 +855,20 @@ def search(df, query):
             .tolist()
         )
 
+        vendor_details = get_vendor_details_list(
+            df,
+            result_vendors
+        )
+
         return {
             "type": "PRODUCT",
             "matched_name": matched_product,
-            "results": result_vendors
+            "results": vendor_details
         }
 
 
     # =====================================================
-    # Only Vendor matched
+    # ONLY VENDOR MATCHED
     # =====================================================
 
     if matched_vendor:
@@ -745,7 +876,7 @@ def search(df, query):
         result_products = (
             df[
                 df["Vendor"] == matched_vendor
-            ]["Product"] 
+            ]["Product"]
             .dropna()
             .astype(str)
             .str.strip()
@@ -753,15 +884,21 @@ def search(df, query):
             .tolist()
         )
 
+        vendor_details = get_vendor_details(
+            df,
+            matched_vendor
+        )
+
         return {
             "type": "VENDOR",
             "matched_name": matched_vendor,
+            "vendor_details": vendor_details,
             "results": result_products
         }
 
 
     # =====================================================
-    # No Match
+    # NO MATCH
     # =====================================================
 
     return {
