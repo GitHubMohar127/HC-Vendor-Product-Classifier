@@ -652,7 +652,7 @@ def search(df, query):
 
 
     # =====================================================
-    # Compare Product vs Vendor
+    # Compare Product vs Vendor 
     # =====================================================
 
     if matched_product and matched_vendor:
@@ -745,7 +745,7 @@ def search(df, query):
         result_products = (
             df[
                 df["Vendor"] == matched_vendor
-            ]["Product"]
+            ]["Product"] 
             .dropna()
             .astype(str)
             .str.strip()

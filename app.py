@@ -11,7 +11,7 @@ from product_search import (
 # =========================================================
 
 st.set_page_config(
-    page_title="Vendor–Product Search",
+    page_title="Hindcon-Speciality-Vendor–Product Search",
     page_icon="🔎",
     layout="wide",
 )
@@ -48,7 +48,7 @@ if "messages" not in st.session_state:
 # =========================================================
 
 st.title(
-    "🔎 Vendor–Product Search System"
+    "🔎 Hindcon-Speciality-Vendor–Product Search System"
 )
 
 st.write(
